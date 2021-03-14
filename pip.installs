@@ -1,0 +1,12 @@
+pip install websocket
+pip install json
+pip install numpy
+pip install time
+pip install datetime
+pip install pandas
+pip install binance
+pip install requests 
+pip install bs4
+pip install pandas
+pip install re
+pip install finta
