@@ -1,1 +1,1 @@
-# cryptpto-bot
+# crypto-bot
