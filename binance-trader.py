@@ -25,6 +25,7 @@ pd.set_option('display.max_colwidth', -1)
 # fnish updating the trading logic
 # incorperate cancels
 # determine the best type of buy or sell to make
+# would having the short ma use the decline by x%  to sell and the second intersection of the 
 
 closes = []
 rsi = []
@@ -35,6 +36,8 @@ long_EMA = []
 stoch = []
 stochd = []
 uo = []
+obv =[]
+cloud = []
 
 buys = 0
 sells = 0
@@ -50,15 +53,15 @@ TRADE_SYMBOL = 'BTCUSD'
 SOCKET = "wss://stream.binance.com:9443/ws/" + trade_symbol + "@kline_1m"
 
 RSI_PERIOD = 15
-MA_SHORT_PERIOD = 7
-MA_LONG_PERIOD = 25
+MA_SHORT_PERIOD = 10
+MA_LONG_PERIOD = 22
 STOCH_PERIOD = 15
 UO_PERIOD = 28
 
 was_short_SMA_above = False
 
 client = Client(config.API_KEY, config.API_SECRET, tld='us')
-#market_data_file = open("market-data-file-" + str(int(time.mktime(datetime.datetime.now().timetuple())*1000)) + ".txt", "w")
+market_data_file = open("market-data-file-" + str(int(time.mktime(datetime.datetime.now().timetuple())*1000)) + ".txt", "w")
 
 def order(side, quantity, symbol, price, order_type=ORDER_TYPE_MARKET):
     try:
@@ -77,9 +80,9 @@ def on_open(ws):
     print('Socket Connection Established\nAwaiting first message...')
 
 def on_close(ws):
-    market_data_file = open("market-data-file-" + str(int(time.mktime(datetime.datetime.now().timetuple())*1000)) + ".txt", "w")
-    #market_data_file.write(str(MA_SHORT_PERIOD) + "," + str(MA_LONG_PERIOD) + "," + (str(coin_avaliable) + "," + str(USD_avaliable) + "," + str(sells) + "," + str(buys) + "\n"))
-    print(str(MA_SHORT_PERIOD) + "," + str(MA_LONG_PERIOD) + "," + (str(coin_avaliable) + "," + str(USD_avaliable) + "," + str(sells) + "," + str(buys) + "\n"))
+    #market_data_file = open("market-data-file-" + str(int(time.mktime(datetime.datetime.now().timetuple())*1000)) + ".txt", "w")
+    market_data_file.write(str(MA_SHORT_PERIOD) + "," + str(MA_LONG_PERIOD) + "," + (str(coin_avaliable) + "," + str(USD_avaliable) + "," + str(sells) + "," + str(buys) + "\n"))
+    #print(str(MA_SHORT_PERIOD) + "," + str(MA_LONG_PERIOD) + "," + (str(coin_avaliable) + "," + str(USD_avaliable) + "," + str(sells) + "," + str(buys) + "\n"))
     #market_data_file.write(str(df))
 
 def on_message(ws, candle):
@@ -91,52 +94,85 @@ def on_message(ws, candle):
     if is_candle_closed:
         closes.append(float(close))
 
-        # 2 simple moving average
-        #if len(closes) >= MA_SHORT_PERIOD:
-        #    temp_short_MA = TA.SMA(candle, MA_SHORT_PERIOD, 'close')
-        #    temp_short_MA = temp_short_MA.iat[-1]
-        #    short_MA.append(temp_short_MA)
+        if len(closes) >= RSI_PERIOD:
+            temp_RSI = TA.RSI(candle, RSI_PERIOD, 'close', True)
+            rsi.append(temp_RSI.iat[-1])
 
-            #if len(closes) >= MA_LONG_PERIOD:
-            #    temp_long_MA = TA.SMA(candle, MA_LONG_PERIOD, 'close')
-            #    temp_long_MA = temp_long_MA.iat[-1]
-            #    long_MA.append(temp_long_MA)
+        # # 2 simple moving average
+        # if len(closes) >= MA_SHORT_PERIOD:
+        #     temp_short_MA = TA.SMA(candle, MA_SHORT_PERIOD, 'close')
+        #     temp_short_MA = temp_short_MA.iat[-1]
+        #     short_MA.append(temp_short_MA)
 
-        if len(closes) >= MA_SHORT_PERIOD:
-            temp_short_EMA = TA.EMA(candle, MA_SHORT_PERIOD, 'close', True)
-            temp_short_EMA = temp_short_EMA.iat[-1]
-            short_EMA.append(temp_short_EMA)
+        #     if len(closes) >= MA_LONG_PERIOD:
+        #         temp_long_MA = TA.SMA(candle, MA_LONG_PERIOD, 'close')
+        #         temp_long_MA = temp_long_MA.iat[-1]
+        #         long_MA.append(temp_long_MA)
 
-            if len(closes) >= MA_LONG_PERIOD:
-                temp_long_EMA = TA.EMA(candle, MA_LONG_PERIOD, 'close', True)
-                temp_long_EMA = temp_long_EMA.iat[-1]
-                long_EMA.append(temp_long_EMA)
+                # if len(closes) >= MA_SHORT_PERIOD:
+                #     temp_short_EMA = TA.EMA(candle, MA_SHORT_PERIOD, 'close', True)
+                #     temp_short_EMA = temp_short_EMA.iat[-1]
+                #     short_EMA.append(temp_short_EMA)
+
+                #     if len(closes) >= MA_LONG_PERIOD:
+                #         temp_long_EMA = TA.EMA(candle, MA_LONG_PERIOD, 'close', True)
+                #         temp_long_EMA = temp_long_EMA.iat[-1]
+                #         long_EMA.append(temp_long_EMA)
         
-                if temp_short_EMA > temp_long_EMA:
-                    if not was_short_SMA_above:
-                        was_short_SMA_above = not was_short_SMA_above
-                        if do_i_own_coin:
-                            #sell
-                            do_i_own_coin = not do_i_own_coin
+        ## On balance volume
+        #if len(closes) >= RSI_PERIOD:
+        #    temp_OBV = TA.OBV(candle, 'close')
+        #    obv.append(temp_OBV.iat[-1])
+#
+        ## Ichimoku Kinko Hyo (Ichimoku Cloud)
+        #if len(closes) >= 52:
+        #    temp_cloud = TA.ICHIMOKU(candle, 9, 26, 52, 26)
+        #    temp = [temp_cloud.iloc[-1].TENKAN, temp_cloud.iloc[-1].KIJUN, temp_cloud.iloc[-1].SENKOU, temp_cloud.iloc[-1].CHIKOU]
+        #    #print(temp)
+        #    cloud.append(temp)
+#
+        ## Bollinger Bands
+        ## This is taking a moving average as an input. Currently taking a simple MA but can take any MA
+        #if len(closes) >= 20:
+        #    temp_bbands = TA.BBANDS(candle, 20, TA.SMA(candle, 20, "close"), "close", 2)
+        #    #print(temp_bbands.iloc[-1])
+        #    temp = [temp_bbands.iloc[-1].BB_LOWER, temp_bbands.iloc[-1].BB_MIDDLE, temp_bbands.iloc[-1].BB_UPPER]
+        #    bbands.append(temp)
+#
+        ## Bollinger Bands
+        ## This is taking a moving average as an input. Currently taking a simple MA but can take any MA
+        #if len(closes) >= 22:
+        #    temp_msd = TA.MSD(candle, 21, 1, "close")
+        #    msd.append(temp_msd.iat[-1])
 
-                            balance = coin_avaliable * close
-                            USD_avaliable = balance
-                            USD_avaliable = USD_avaliable * 0.999
-                            
-                            coin_avaliable = 0
-                            buys = buys + 1
-                elif temp_short_EMA < temp_long_EMA:
-                    if was_short_SMA_above:
-                        was_short_SMA_above = not was_short_SMA_above
-                        if not do_i_own_coin:
-                            #buy
-                            do_i_own_coin = not do_i_own_coin
-        
-                            balance = (USD_avaliable * .999) / candle['open'][0]
-                            coin_avaliable = balance
+                
+            # paste the indicator in above this state so that these statements will be inside of it. Changes the true and false
+            # values to represent when you would want the bot to buy or sell based on the indicators
+            if True:
+                if not was_short_SMA_above:
+                    was_short_SMA_above = not was_short_SMA_above
+                    if do_i_own_coin:
+                        #buy
+                        do_i_own_coin = not do_i_own_coin
 
-                            USD_avaliable = 0
-                            sells = sells + 1
+                        balance = coin_avaliable * close
+                        USD_avaliable = balance
+                        USD_avaliable = USD_avaliable * 0.999
+                        
+                        coin_avaliable = 0
+                        buys = buys + 1
+            elif True:
+                if was_short_SMA_above:
+                    was_short_SMA_above = not was_short_SMA_above
+                    if not do_i_own_coin:
+                        #sell
+                        do_i_own_coin = not do_i_own_coin
+    
+                        balance = (USD_avaliable * .999) / candle['open'][0]
+                        coin_avaliable = balance
+
+                        USD_avaliable = 0
+                        sells = sells + 1
 
 coin_avaliable = coin_starting
 USD_avaliable = USD_starting
@@ -148,55 +184,55 @@ raw_data = file.readlines()
 # build frame
 df = pd.DataFrame([], columns=['TimeStamp', 'open', 'High', 'Low', 'close', '7x short SMA', '25x long SMA', 'Coin', 'USD', 'Buys', 'Sells'])
 # print(df)
-for line in raw_data:
-    # adds the raw data to dataframe
-    candle = line.split("  ")
-    candle.pop(0)
-    df = df.append({'TimeStamp': float(candle[0]), 'open': float(candle[1]), 'High': float(candle[2]), 'Low': float(candle[3]), 'close': float(candle[4])}, ignore_index=True)
+# for line in raw_data:
+#     # adds the raw data to dataframe
+#     candle = line.split("  ")
+#     candle.pop(0)
+#     df = df.append({'TimeStamp': float(candle[0]), 'open': float(candle[1]), 'High': float(candle[2]), 'Low': float(candle[3]), 'close': float(candle[4])}, ignore_index=True)
 
-    # calls method to calculate the indicators
-    on_message(6, df)
+#     # calls method to calculate the indicators
+#     on_message(6, df)
 
-    # adds each indicator to the dataframe
-    if len(short_MA) > 0:
-        df.iloc[-1, df.columns.get_loc('7x short SMA')] = short_MA[-1]
-        if len(long_MA) > 0:
-            df.iloc[-1, df.columns.get_loc('25x long SMA')] = long_MA[-1]
-    df.iloc[-1, df.columns.get_loc('Coin')] = coin_avaliable
-    df.iloc[-1, df.columns.get_loc('USD')] = USD_avaliable
-    #df.iloc[-1, df.columns.get_loc('Buys')] = buys
-    #df.iloc[-1, df.columns.get_loc('Sells')] = sells
-on_close(6)
+#     # adds each indicator to the dataframe
+#     if len(short_MA) > 0:
+#         df.iloc[-1, df.columns.get_loc('7x short SMA')] = short_MA[-1]
+#         if len(long_MA) > 0:
+#             df.iloc[-1, df.columns.get_loc('25x long SMA')] = long_MA[-1]
+#     df.iloc[-1, df.columns.get_loc('Coin')] = coin_avaliable
+#     df.iloc[-1, df.columns.get_loc('USD')] = USD_avaliable
+#     #df.iloc[-1, df.columns.get_loc('Buys')] = buys
+#     #df.iloc[-1, df.columns.get_loc('Sells')] = sells
+# on_close(6)
 
 
 #------------------------------
-# while MA_SHORT_PERIOD > 3:
-#         MA_LONG_PERIOD = 23
-#         while MA_LONG_PERIOD < 28:
-#             for line in raw_data:
-#                 # adds the raw data to dataframe
-#                 candle = line.split("  ")
-#                 candle.pop(0)
-#                 df = df.append({'TimeStamp': float(candle[0]), 'open': float(candle[1]), 'High': float(candle[2]), 'Low': float(candle[3]), 'close': float(candle[4])}, ignore_index=True)
+while MA_SHORT_PERIOD > 3:
+        MA_LONG_PERIOD = 23
+        while MA_LONG_PERIOD < 28:
+            for line in raw_data:
+                # adds the raw data to dataframe
+                candle = line.split("  ")
+                candle.pop(0)
+                df = df.append({'TimeStamp': float(candle[0]), 'open': float(candle[1]), 'High': float(candle[2]), 'Low': float(candle[3]), 'close': float(candle[4])}, ignore_index=True)
 
-#                 # calls method to calculate the indicators
-#                 on_message(6, df)
+                # calls method to calculate the indicators
+                on_message(6, df)
 
-#                 # adds each indicator to the dataframe
-#                 if len(short_MA) > 0:
-#                     df.iloc[-1, df.columns.get_loc('7x short SMA')] = short_MA[-1]
-#                     if len(long_MA) > 0:
-#                         df.iloc[-1, df.columns.get_loc('25x long SMA')] = long_MA[-1]
-#                 df.iloc[-1, df.columns.get_loc('Coin')] = coin_avaliable
-#                 df.iloc[-1, df.columns.get_loc('USD')] = USD_avaliable
-#                 #df.iloc[-1, df.columns.get_loc('Buys')] = buys
-#                 #df.iloc[-1, df.columns.get_loc('Sells')] = sells
-#             on_close(6)
-#             do_i_own_coin = True
-#             sells = 0 
-#             buys = 0
-#             coin_avaliable = 0.04834805
-#             USD_avaliable = 0
-#             MA_LONG_PERIOD = MA_LONG_PERIOD + 1
-#         MA_SHORT_PERIOD = MA_SHORT_PERIOD - 1 
-# market_data_file.close()
+                # adds each indicator to the dataframe
+                if len(short_MA) > 0:
+                    df.iloc[-1, df.columns.get_loc('7x short SMA')] = short_MA[-1]
+                    if len(long_MA) > 0:
+                        df.iloc[-1, df.columns.get_loc('25x long SMA')] = long_MA[-1]
+                df.iloc[-1, df.columns.get_loc('Coin')] = coin_avaliable
+                df.iloc[-1, df.columns.get_loc('USD')] = USD_avaliable
+                #df.iloc[-1, df.columns.get_loc('Buys')] = buys
+                #df.iloc[-1, df.columns.get_loc('Sells')] = sells
+            on_close(6)
+            do_i_own_coin = True
+            sells = 0 
+            buys = 0
+            coin_avaliable = 0.04834805
+            USD_avaliable = 0
+            MA_LONG_PERIOD = MA_LONG_PERIOD + 1
+        MA_SHORT_PERIOD = MA_SHORT_PERIOD - 1 
+market_data_file.close()

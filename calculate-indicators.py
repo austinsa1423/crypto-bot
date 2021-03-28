@@ -29,6 +29,11 @@ STOCH_PERIOD = 15
 UO_PERIOD = 28
 
 # lists that stores all fo the values for that indicator, mostly used to store temporarily till it is added to the dataframe
+
+# what seems to work best is if you have 1 of 3 (but voume seems to be swapped with volatility sometimes) of the catergories or indicators
+# a suggested one is RSI, OBV, and Ichimoku Kinko Hyo (Ichimoku Cloud)
+
+# momentum
 closes = []
 rsi = []
 short_MA = []
@@ -38,6 +43,16 @@ long_EMA = []
 stoch = []
 stochd = []
 uo = []
+
+#volume
+obv = []
+
+# volitility
+msd = [] #standard deviation
+
+# trend
+cloud = []
+bbands = [] 
 
 client = Client(config.API_KEY, config.API_SECRET, tld='us')
 
@@ -91,13 +106,44 @@ def on_message(ws, candle):
             temp_uo = TA.UO(candle, 'close')
             uo.append(temp_uo.iat[-1])
 
+        # On balance volume
+        if len(closes) >= RSI_PERIOD:
+            temp_OBV = TA.OBV(candle, 'close')
+            obv.append(temp_OBV.iat[-1])
+
+        # Ichimoku Kinko Hyo (Ichimoku Cloud)
+        if len(closes) >= 52:
+            temp_cloud = TA.ICHIMOKU(candle, 9, 26, 52, 26)
+            temp = [temp_cloud.iloc[-1].TENKAN, temp_cloud.iloc[-1].KIJUN, temp_cloud.iloc[-1].SENKOU, temp_cloud.iloc[-1].CHIKOU]
+            #print(temp)
+            cloud.append(temp)
+
+        # Bollinger Bands
+        # This is taking a moving average as an input. Currently taking a simple MA but can take any MA
+        if len(closes) >= 20:
+            temp_bbands = TA.BBANDS(candle, 20, TA.SMA(candle, 20, "close"), "close", 2)
+            #print(temp_bbands.iloc[-1])
+            temp = [temp_bbands.iloc[-1].BB_LOWER, temp_bbands.iloc[-1].BB_MIDDLE, temp_bbands.iloc[-1].BB_UPPER]
+            bbands.append(temp)
+
+        # Bollinger Bands
+        # This is taking a moving average as an input. Currently taking a simple MA but can take any MA
+        if len(closes) >= 22:
+            temp_msd = TA.MSD(candle, 21, 1, "close")
+            msd.append(temp_msd.iat[-1])
+
+
+
 
 # opens a raw data output file
-file = open("binance-output-1615696702000.txt", 'r')
+file = open("binance-output-1616948205000.txt", 'r')
 raw_data = file.readlines()
 
 # build frame
-df = pd.DataFrame([], columns=['TimeStamp', 'Open', 'High', 'Low', 'close', 'Volume', 'Quote', 'Number of trades', 'Taker base', 'Taker quote', '7x short SMA', '25x long SMA', '7x short EMA', '25x long EMA', 'RSI', 'StochasticOscillator_K', 'StochasticOscillator_D', 'UltimateOscillator'])
+#df = pd.DataFrame([], columns=['TimeStamp', 'open', 'high', 'low', 'close', 'volume', 'Quote', 'Number of trades', 'Taker base', 'Taker quote', '7x short SMA', '25x long SMA', '7x short EMA', '25x long EMA', 'RSI', 'StochasticOscillator_K', 'StochasticOscillator_D', 'UltimateOscillator', 'OnBalanceVolume', 'MovingStandardDeviation'])
+
+# with cloud and bolligner
+df = pd.DataFrame([], columns=['TimeStamp', 'open', 'high', 'low', 'close', 'volume', 'Quote', 'Number of trades', 'Taker base', 'Taker quote', '7x short SMA', '25x long SMA', '7x short EMA', '25x long EMA', 'RSI', 'StochasticOscillator_K', 'StochasticOscillator_D', 'UltimateOscillator', 'OnBalanceVolume', 'MovingStandardDeviation', 'IchimokuCloud_TENKAN', 'IchimokuCloud_KIJUN', 'IchimokuCloud_SENKOU', 'IchimokuCloud_CHIKOU', 'BollingerBands_LOWER', 'BollingerBands_MIDDLE', 'BollingerBands_UPPER'])
 # print(df)
 
 # iterates through the raw data that was in the output file and calculates each indicator for at that candle
@@ -105,7 +151,7 @@ for line in raw_data:
     # adds the raw data to dataframe
     candle = line.split("  ")
     candle.pop(0)
-    df = df.append({'TimeStamp': float(candle[0]), 'Open': float(candle[1]), 'High': float(candle[2]), 'Low': float(candle[3]), 'close': float(candle[4]), 'Volume': float(candle[5]),'Quote': float(candle[7]), 'Number of trades': float(candle[8]), 'Taker base': float(candle[9]), 'Taker quote': float(candle[10])}, ignore_index=True)
+    df = df.append({'TimeStamp': float(candle[0]), 'open': float(candle[1]), 'high': float(candle[2]), 'low': float(candle[3]), 'close': float(candle[4]), 'volume': float(candle[5]),'Quote': float(candle[7]), 'Number of trades': float(candle[8]), 'Taker base': float(candle[9]), 'Taker quote': float(candle[10])}, ignore_index=True)
 
     # calls method to calculate the indicators
     on_message(6, df)
@@ -129,11 +175,24 @@ for line in raw_data:
                     df.columns.get_loc('StochasticOscillator_D')] = stochd[-1]
         if len(uo) > 0:
             df.iloc[-1, df.columns.get_loc('UltimateOscillator')] = uo[-1]
+        if len(obv) > 0:
+            df.iloc[-1, df.columns.get_loc('OnBalanceVolume')] = obv[-1]
+        if len(cloud) > 0:
+            df.iloc[-1, df.columns.get_loc('IchimokuCloud_TENKAN')] = cloud[-1][0]
+            df.iloc[-1, df.columns.get_loc('IchimokuCloud_KIJUN')] = cloud[-1][1]
+            df.iloc[-1, df.columns.get_loc('IchimokuCloud_SENKOU')] = cloud[-1][2]
+            df.iloc[-1, df.columns.get_loc('IchimokuCloud_CHIKOU')] = cloud[-1][3]
+        if len(bbands) > 0:
+            df.iloc[-1, df.columns.get_loc('BollingerBands_LOWER')] = bbands[-1][0]
+            df.iloc[-1, df.columns.get_loc('BollingerBands_MIDDLE')] = bbands[-1][1]
+            df.iloc[-1, df.columns.get_loc('BollingerBands_UPPER')] = bbands[-1][2]
+        if len(msd) > 0:
+            df.iloc[-1, df.columns.get_loc('MovingStandardDeviation')] = msd[-1]
             # print(df)
             # time.sleep(5)
 
 # output the dataframe to a file
-market_data_file = open("market-data-file-" + str(
+market_data_file = open("market-indicators-" + str(
     int(time.mktime(datetime.datetime.now().timetuple())*1000)) + ".txt", "w")
 market_data_file.write(str(df))
 # print(df)

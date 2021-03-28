@@ -7,7 +7,7 @@ from binance.enums import *
 client = Client(config.API_KEY, config.API_SECRET, tld='us')
 
 # more info on this here https://python-binance.readthedocs.io/en/latest/market_data.html#id7
-klines = client.get_historical_klines("BTCUSDT", Client.KLINE_INTERVAL_15MINUTE, "1 day ago UTC")
+klines = client.get_historical_klines("BTCUSDT", Client.KLINE_INTERVAL_15MINUTE, "90 day ago UTC")
 
 klines = str(klines).replace("'", "")
 klines = klines.replace(" ", "")
