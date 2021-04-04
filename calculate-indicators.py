@@ -1,3 +1,4 @@
+from os import close
 import websocket
 import json
 import pprint
@@ -14,6 +15,7 @@ from finta import TA
 # Reference
 # -------------------------------
 # https://github.com/peerchemist/finta
+# https://tradingstrategyguides.com/best-combination-of-technical-indicators/
 
 # removes limits on pandas
 pd.set_option('display.max_rows', None)
@@ -114,15 +116,15 @@ def on_message(ws, candle):
         # Ichimoku Kinko Hyo (Ichimoku Cloud)
         if len(closes) >= 52:
             temp_cloud = TA.ICHIMOKU(candle, 9, 26, 52, 26)
-            temp = [temp_cloud.iloc[-1].TENKAN, temp_cloud.iloc[-1].KIJUN, temp_cloud.iloc[-1].SENKOU, temp_cloud.iloc[-1].CHIKOU]
-            #print(temp)
+            # tenkan_sen, kijun_sen, senkou_span_a, senkou_span_b, chikou_span
+            cloud_diff = temp_cloud.iloc[-1].senkou_span_a - temp_cloud.iloc[-1].SENKOU
+            temp = [temp_cloud.iloc[-1].TENKAN, temp_cloud.iloc[-1].KIJUN, cloud_diff, temp_cloud.iloc[-1].senkou_span_a, temp_cloud.iloc[-1].SENKOU, temp_cloud.iloc[-1].CHIKOU]
             cloud.append(temp)
 
         # Bollinger Bands
         # This is taking a moving average as an input. Currently taking a simple MA but can take any MA
         if len(closes) >= 20:
             temp_bbands = TA.BBANDS(candle, 20, TA.SMA(candle, 20, "close"), "close", 2)
-            #print(temp_bbands.iloc[-1])
             temp = [temp_bbands.iloc[-1].BB_LOWER, temp_bbands.iloc[-1].BB_MIDDLE, temp_bbands.iloc[-1].BB_UPPER]
             bbands.append(temp)
 
@@ -135,15 +137,22 @@ def on_message(ws, candle):
 
 
 
-# opens a raw data output file
-file = open("binance-output-1616948205000.txt", 'r')
+# opens a raw data output file binance-output-1616948205000
+file = open("historical-binance-data-1616972113000.txt", 'r')
 raw_data = file.readlines()
 
 # build frame
 #df = pd.DataFrame([], columns=['TimeStamp', 'open', 'high', 'low', 'close', 'volume', 'Quote', 'Number of trades', 'Taker base', 'Taker quote', '7x short SMA', '25x long SMA', '7x short EMA', '25x long EMA', 'RSI', 'StochasticOscillator_K', 'StochasticOscillator_D', 'UltimateOscillator', 'OnBalanceVolume', 'MovingStandardDeviation'])
 
 # with cloud and bolligner
-df = pd.DataFrame([], columns=['TimeStamp', 'open', 'high', 'low', 'close', 'volume', 'Quote', 'Number of trades', 'Taker base', 'Taker quote', '7x short SMA', '25x long SMA', '7x short EMA', '25x long EMA', 'RSI', 'StochasticOscillator_K', 'StochasticOscillator_D', 'UltimateOscillator', 'OnBalanceVolume', 'MovingStandardDeviation', 'IchimokuCloud_TENKAN', 'IchimokuCloud_KIJUN', 'IchimokuCloud_SENKOU', 'IchimokuCloud_CHIKOU', 'BollingerBands_LOWER', 'BollingerBands_MIDDLE', 'BollingerBands_UPPER'])
+df = pd.DataFrame([], columns=[
+    'TimeStamp', 'open', 'high', 'low', 'close', 'volume', 'Quote', 'NumberOfTrades', 'TakerBase', 'TakerQuote', 
+    '7xshortSMA', '25xlongSMA', '7xshortEMA', '25xlongEMA', 
+    'RSI', 'StochasticOscillator_K', 'StochasticOscillator_D', 'UltimateOscillator', 
+    'OnBalanceVolume', 
+    'MovingStandardDeviation', 
+    'IchimokuCloud_TENKAN', 'IchimokuCloud_KIJUN', 'IchimokuCloud_SENKOU_Diff', 'IchimokuCloud_SENKOU_SpanA', 'IchimokuCloud_SENKOU_SpanB', 'IchimokuCloud_CHIKOU', 
+    'BollingerBands_LOWER', 'BollingerBands_MIDDLE', 'BollingerBands_UPPER'])
 # print(df)
 
 # iterates through the raw data that was in the output file and calculates each indicator for at that candle
@@ -151,48 +160,42 @@ for line in raw_data:
     # adds the raw data to dataframe
     candle = line.split("  ")
     candle.pop(0)
-    df = df.append({'TimeStamp': float(candle[0]), 'open': float(candle[1]), 'high': float(candle[2]), 'low': float(candle[3]), 'close': float(candle[4]), 'volume': float(candle[5]),'Quote': float(candle[7]), 'Number of trades': float(candle[8]), 'Taker base': float(candle[9]), 'Taker quote': float(candle[10])}, ignore_index=True)
+    df = df.append({'TimeStamp': float(candle[0]), 'open': float(candle[1]), 'high': float(candle[2]), 'low': float(candle[3]), 'close': float(candle[4]), 'volume': float(candle[5]),'Quote': float(candle[7]), 'NumberOfTrades': float(candle[8]), 'TakerBase': float(candle[9]), 'TakerQuote': float(candle[10])}, ignore_index=True)
 
     # calls method to calculate the indicators
     on_message(6, df)
 
     # adds each indicator to the dataframe
-    if len(short_EMA) > 0:
-        df.iloc[-1, df.columns.get_loc('7x short EMA')] = short_EMA[-1]
-        if len(long_EMA) > 0:
-            df.iloc[-1, df.columns.get_loc('25x long EMA')] = long_EMA[-1]
-    if len(short_MA) > 0:
-        df.iloc[-1, df.columns.get_loc('7x short SMA')] = short_MA[-1]
-        if len(long_MA) > 0:
-            df.iloc[-1, df.columns.get_loc('25x long SMA')] = long_MA[-1]
-        if len(rsi) > 0:
-            df.iloc[-1, df.columns.get_loc('RSI')] = rsi[-1]
-        if len(stoch) > 0:
-            df.iloc[-1,
-                    df.columns.get_loc('StochasticOscillator_K')] = stoch[-1]
-        if len(stochd) > 0:
-            df.iloc[-1,
-                    df.columns.get_loc('StochasticOscillator_D')] = stochd[-1]
-        if len(uo) > 0:
-            df.iloc[-1, df.columns.get_loc('UltimateOscillator')] = uo[-1]
-        if len(obv) > 0:
-            df.iloc[-1, df.columns.get_loc('OnBalanceVolume')] = obv[-1]
-        if len(cloud) > 0:
-            df.iloc[-1, df.columns.get_loc('IchimokuCloud_TENKAN')] = cloud[-1][0]
-            df.iloc[-1, df.columns.get_loc('IchimokuCloud_KIJUN')] = cloud[-1][1]
-            df.iloc[-1, df.columns.get_loc('IchimokuCloud_SENKOU')] = cloud[-1][2]
-            df.iloc[-1, df.columns.get_loc('IchimokuCloud_CHIKOU')] = cloud[-1][3]
-        if len(bbands) > 0:
-            df.iloc[-1, df.columns.get_loc('BollingerBands_LOWER')] = bbands[-1][0]
-            df.iloc[-1, df.columns.get_loc('BollingerBands_MIDDLE')] = bbands[-1][1]
-            df.iloc[-1, df.columns.get_loc('BollingerBands_UPPER')] = bbands[-1][2]
-        if len(msd) > 0:
-            df.iloc[-1, df.columns.get_loc('MovingStandardDeviation')] = msd[-1]
+    if len(closes) > 52: 
+        df.iloc[-1, df.columns.get_loc('7xshortEMA')] = short_EMA[-1]
+        df.iloc[-1, df.columns.get_loc('25xlongEMA')] = long_EMA[-1]
+        df.iloc[-1, df.columns.get_loc('7xshortSMA')] = short_MA[-1]
+        df.iloc[-1, df.columns.get_loc('25xlongSMA')] = long_MA[-1]
+
+        df.iloc[-1, df.columns.get_loc('RSI')] = rsi[-1]
+        df.iloc[-1,df.columns.get_loc('StochasticOscillator_K')] = stoch[-1]
+        df.iloc[-1,df.columns.get_loc('StochasticOscillator_D')] = stochd[-1]
+        df.iloc[-1, df.columns.get_loc('UltimateOscillator')] = uo[-1]
+
+        df.iloc[-1, df.columns.get_loc('OnBalanceVolume')] = obv[-1]
+
+        df.iloc[-1, df.columns.get_loc('IchimokuCloud_TENKAN')] = cloud[-1][0]
+        df.iloc[-1, df.columns.get_loc('IchimokuCloud_KIJUN')] = cloud[-1][1]
+        df.iloc[-1, df.columns.get_loc('IchimokuCloud_SENKOU_Diff')] = cloud[-1][2]
+        df.iloc[-1, df.columns.get_loc('IchimokuCloud_SENKOU_SpanA')] = cloud[-1][3]
+        df.iloc[-1, df.columns.get_loc('IchimokuCloud_SENKOU_SpanB')] = cloud[-1][4]
+        df.iloc[-1, df.columns.get_loc('IchimokuCloud_CHIKOU')] = cloud[-1][5]
+
+        df.iloc[-1, df.columns.get_loc('BollingerBands_LOWER')] = bbands[-1][0]
+        df.iloc[-1, df.columns.get_loc('BollingerBands_MIDDLE')] = bbands[-1][1]
+        df.iloc[-1, df.columns.get_loc('BollingerBands_UPPER')] = bbands[-1][2]
+
+        df.iloc[-1, df.columns.get_loc('MovingStandardDeviation')] = msd[-1]
             # print(df)
             # time.sleep(5)
 
 # output the dataframe to a file
-market_data_file = open("market-indicators-" + str(
-    int(time.mktime(datetime.datetime.now().timetuple())*1000)) + ".txt", "w")
+df = df[df.index >= 52]
+market_data_file = open("market-indicators-" + str(int(time.mktime(datetime.datetime.now().timetuple())*1000)) + ".txt", "w")
 market_data_file.write(str(df))
 # print(df)

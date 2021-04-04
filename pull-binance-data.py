@@ -7,7 +7,11 @@ from binance.enums import *
 client = Client(config.API_KEY, config.API_SECRET, tld='us')
 
 # more info on this here https://python-binance.readthedocs.io/en/latest/market_data.html#id7
-klines = client.get_historical_klines("BTCUSDT", Client.KLINE_INTERVAL_15MINUTE, "90 day ago UTC")
+klines = client.get_historical_klines("BTCUSDT", Client.KLINE_INTERVAL_15MINUTE, "1 day ago UTC")
+print(klines)
+temp = time.ctime(int(klines[-1][0]/1000))
+print(str(time.ctime(int(klines[0][0]/1000))))
+print(time.strftime("%m", klines[-1][0]/1000))
 
 klines = str(klines).replace("'", "")
 klines = klines.replace(" ", "")
@@ -17,7 +21,7 @@ klines = klines.replace(",", "  ")
 klines = klines.replace("\n\n", "")
 
 #print(klines)
-file = open("binance-output-" + str(int(time.mktime(datetime.datetime.now().timetuple())*1000)) + ".txt", "w")
+file = open("historical-binance-data-" + str(int(time.mktime(datetime.datetime.now().timetuple())*1000)) + ".txt", "w")
 file.write("  " + str(klines))
 file.close()
 
